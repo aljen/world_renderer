@@ -58,7 +58,7 @@ pub struct WorldStats {
 }
 
 pub struct TerrainLayer {
-    height: f32,
+    height: f64,
     color: Color,
 }
 
@@ -203,8 +203,8 @@ fn generate_terrain_perlin(
     let mut uvs: Vec<[f32; 2]> = Vec::with_capacity(n_vertices);
     let mut indices: Vec<u32> = Vec::with_capacity(n_vertices);
 
-    let half_width = world_config.width / 2;
-    let half_height = world_config.height / 2;
+    let half_width = world_config.width as f64 / 2.0;
+    let half_height = world_config.height as f64 / 2.0;
 
     let perlin = Perlin::new();
     perlin.set_seed(world_config.generator.seed as u32);
@@ -261,8 +261,12 @@ fn generate_terrain_perlin(
         octave_offsets.push(Vec2::new(offset_x, offset_y));
     }
 
-    let mut z_min = f32::MAX;
-    let mut z_max = f32::MIN;
+    let mut z_min = f64::MAX;
+    let mut z_max = f64::MIN;
+
+    let noise_scale = world_config.generator.noise_scale;
+    let persistance = world_config.generator.persistance;
+    let lacunarity = world_config.generator.lacunarity;
 
     for y in 0..(world_config.height as i32) {
         for x in 0..(world_config.width as i32) {
@@ -270,33 +274,34 @@ fn generate_terrain_perlin(
             let mut frequency: f64 = 1.0;
             let mut z: f64 = 0.0;
 
+            let x64 = x as f64;
+            let y64 = y as f64;
+
             (0..world_config.generator.octaves as usize).for_each(|i| {
-                let sample_x = x as f64 / world_config.generator.noise_scale * frequency
-                    + octave_offsets[i].x as f64;
-                let sample_y = y as f64 / world_config.generator.noise_scale * frequency
-                    + octave_offsets[i].y as f64;
+                let octave_offset_x = octave_offsets[i].x as f64;
+                let octave_offset_y = octave_offsets[i].y as f64;
+                let sample_x = (x64 - half_width) / noise_scale * frequency + octave_offset_x;
+                let sample_y = (y64 - half_height) / noise_scale * frequency + octave_offset_y;
 
                 let value = perlin.get([sample_x, sample_y]);
 
                 z += value * amplitude;
 
-                amplitude *= world_config.generator.persistance;
-                frequency *= world_config.generator.lacunarity;
+                amplitude *= persistance;
+                frequency *= lacunarity;
             });
 
             vertices.push([
-                (x - half_width as i32) as f32,
-                (y - half_height as i32) as f32,
+                (x64 - half_width) as f32,
+                (y64 - half_height) as f32,
                 z as f32,
             ]);
 
-            if (z as f32) < z_min {
-                z_min = z as f32;
-        }
-
-            if (z as f32) > z_max {
-                z_max = z as f32;
-    }
+            if z < z_min {
+                z_min = z;
+            } else if z > z_max {
+                z_max = z;
+            }
         }
     }
 
@@ -309,11 +314,11 @@ fn generate_terrain_perlin(
         for x in 0..(world_config.width as i32) {
             let index = (y as usize * world_config.width + x as usize) as usize;
 
-            let z = vertices[index][2];
+            let z = vertices[index][2] as f64;
             let normalized_z = z + z_min.abs();
             let normalized_z = normalized_z / z_diff;
 
-            vertices[index][2] = z * world_config.z_scale as f32;
+            vertices[index][2] = (z * world_config.z_scale) as f32;
 
             let index = index * 4;
 
