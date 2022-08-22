@@ -690,8 +690,8 @@ pub fn debug_stats_ui(
         });
 
     if wireframe != world_config.wireframe {
-        for (entity, terrain, wireframe_tag) in query_terrain.iter() {
-            if let Some(wireframe_tag) = wireframe_tag {
+        for (_entity, _terrain, wireframe_tag) in query_terrain.iter() {
+            if let Some(_wireframe_tag) = wireframe_tag {
             } else {
             }
         }
