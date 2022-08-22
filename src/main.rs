@@ -406,11 +406,11 @@ fn setup(
     world_config: Res<WorldConfig>,
 ) {
     // commands.spawn_bundle(Camera3dBundle {
-    //     transform: Transform::from_xyz(0.0, 0.0, 100.0).looking_at(Vec3::ZERO, Vec3::X),
+    //     transform: Transform::from_xyz(0.0, 0.0, 250.0).looking_at(Vec3::ZERO, Vec3::Y),
     //     ..default()
     // });
     commands.spawn_bundle(Camera3dBundle {
-        transform: Transform::from_xyz(0.0, 250.0, 100.0).looking_at(Vec3::ZERO, Vec3::Z),
+        transform: Transform::from_xyz(0.0, -250.0, 100.0).looking_at(Vec3::ZERO, Vec3::Y),
         ..default()
     });
 
