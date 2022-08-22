@@ -314,16 +314,16 @@ fn main() {
             ..default()
         })
         .insert_resource(WorldConfig {
-            width: 256,
-            height: 256,
-            z_scale: 1.0,
+            width: 512,
+            height: 512,
+            z_scale: 50.0,
             auto_update: true,
             wireframe: false,
             world_type: ConfigType::GeoTif,
             generator: GeneratorConfig {
                 seed: 0,
-                noise_scale: 19.0,
-                octaves: 4,
+                noise_scale: 100.0,
+                octaves: 8,
                 persistance: 0.5,
                 lacunarity: 2.0,
             },
