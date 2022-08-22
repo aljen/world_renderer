@@ -261,6 +261,9 @@ fn generate_terrain_perlin(
         octave_offsets.push(Vec2::new(offset_x, offset_y));
     }
 
+    let mut z_min = f32::MAX;
+    let mut z_max = f32::MIN;
+
     for y in 0..(world_config.height as i32) {
         for x in 0..(world_config.width as i32) {
             let mut amplitude: f64 = 1.0;
@@ -284,13 +287,46 @@ fn generate_terrain_perlin(
             vertices.push([
                 (x - half_width as i32) as f32,
                 (y - half_height as i32) as f32,
-                (z * world_config.z_scale) as f32,
+                z as f32,
             ]);
+
+            if (z as f32) < z_min {
+                z_min = z as f32;
+        }
+
+            if (z as f32) > z_max {
+                z_max = z as f32;
+    }
         }
     }
 
+    let z_diff = z_max - z_min;
+    let z_diff = if z_diff > 0.0 { z_diff } else { 1.0 };
+
+    println!("z_min: {} z_max: {} z_diff: {}", z_min, z_max, z_diff);
+
     for y in 0..(world_config.height as i32) {
         for x in 0..(world_config.width as i32) {
+            let index = (y as usize * world_config.width + x as usize) as usize;
+
+            let z = vertices[index][2];
+            let normalized_z = z + z_min.abs();
+            let normalized_z = normalized_z / z_diff;
+
+            vertices[index][2] = z * world_config.z_scale as f32;
+
+            let index = index * 4;
+
+            for layer in &layers {
+                if normalized_z <= layer.height {
+                    texture_data[index] = (layer.color.r() * 255.0) as u8;
+                    texture_data[index + 1] = (layer.color.g() * 255.0) as u8;
+                    texture_data[index + 2] = (layer.color.b() * 255.0) as u8;
+                    texture_data[index + 3] = (layer.color.a() * 255.0) as u8;
+                    break;
+                }
+            }
+
             uvs.push([
                 x as f32 / world_config.width as f32,
                 y as f32 / world_config.height as f32,
