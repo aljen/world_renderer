@@ -461,6 +461,7 @@ fn main() {
             features: WgpuFeatures::POLYGON_MODE_LINE,
             ..default()
         })
+        .insert_resource(ImageSettings::default_nearest())
         .insert_resource(WorldConfig {
             width: 512,
             height: 512,
