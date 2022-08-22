@@ -7,8 +7,9 @@ use bevy::{
     prelude::*,
     render::{
         mesh::Indices,
-        render_resource::PrimitiveTopology,
+        render_resource::{Extent3d, PrimitiveTopology, TextureDimension, TextureFormat},
         settings::{WgpuFeatures, WgpuSettings},
+        texture::ImageSettings,
     },
     window::PresentMode,
 };
@@ -75,14 +76,32 @@ pub struct WorldConfig {
 
 pub struct WorldAssets {
     terrain_mesh: Option<Handle<Mesh>>,
+    terrain_material: Option<Handle<StandardMaterial>>,
 }
 
-fn generate_terrain_mesh(world_config: &WorldConfig, world_stats: &mut WorldStats) -> Mesh {
+fn generate_terrain_mesh(
+    world_config: &WorldConfig,
+    world_stats: &mut WorldStats,
+) -> (Mesh, Image) {
     let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
 
-    generate_terrain_perlin(&mut mesh, world_config);
+    let mut texture = Image::new(
+        Extent3d {
+            width: world_config.width as u32,
+            height: world_config.height as u32,
+            depth_or_array_layers: 1,
+        },
+        TextureDimension::D2,
+        Vec::new(),
+        TextureFormat::Rgba8Unorm,
+    );
 
-    mesh
+    let texture_data_size = world_config.width * world_config.height * 4;
+    texture.data.resize(texture_data_size, 0);
+
+    generate_terrain_perlin(&mut mesh, &mut texture.data, world_config, world_stats);
+
+    (mesh, texture)
 }
 
 fn generate_terrain_geotif(mesh: &mut Mesh, world_config: &WorldConfig) {
@@ -169,6 +188,7 @@ fn generate_terrain_geotif(mesh: &mut Mesh, world_config: &WorldConfig) {
 
 fn generate_terrain_perlin(
     mesh: &mut Mesh,
+    texture_data: &mut Vec<u8>,
     world_config: &WorldConfig,
     world_stats: &mut WorldStats,
 ) {
@@ -284,6 +304,7 @@ fn generate_terrain_perlin(
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
+    mut images: ResMut<Assets<Image>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut world_assets: ResMut<WorldAssets>,
     mut world_stats: ResMut<WorldStats>,
@@ -298,21 +319,25 @@ fn setup(
         ..default()
     });
 
-    let terrain_mesh = meshes.add(generate_terrain_mesh(&world_config, &mut world_stats));
+    let (terrain_mesh, terrain_image) = generate_terrain_mesh(&world_config, &mut world_stats);
 
+    let terrain_mesh = meshes.add(terrain_mesh);
     world_assets.terrain_mesh = Some(terrain_mesh.clone());
 
-    // commands.spawn_bundle(InfiniteGridBundle {
-    //     grid: InfiniteGrid {
-    //         ..Default::default()
-    //     },
-    //     ..Default::default()
-    // });
+    let terrain_image: Handle<Image> = images.add(terrain_image);
+
+    let terrain_material: Handle<StandardMaterial> = materials.add(StandardMaterial {
+        base_color_texture: Some(terrain_image),
+        unlit: true,
+        alpha_mode: AlphaMode::Opaque,
+        ..default()
+    });
+    world_assets.terrain_material = Some(terrain_material.clone());
 
     commands
         .spawn_bundle(PbrBundle {
             mesh: terrain_mesh,
-            material: materials.add(Color::ALICE_BLUE.into()),
+            material: terrain_material,
             ..default()
         })
         .insert(Terrain)
@@ -360,7 +385,10 @@ fn main() {
             },
             offset: Vec2::ZERO,
         })
-        .insert_resource(WorldAssets { terrain_mesh: None })
+        .insert_resource(WorldAssets {
+            terrain_mesh: None,
+            terrain_material: None,
+        })
         .insert_resource(WorldStats {
             triangles: 0,
             vertices: 0,
@@ -379,6 +407,8 @@ fn main() {
 pub fn world_generator_ui(
     mut egui_context: ResMut<EguiContext>,
     mut meshes: ResMut<Assets<Mesh>>,
+    mut images: ResMut<Assets<Image>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
     mut world_config: ResMut<WorldConfig>,
     mut world_stats: ResMut<WorldStats>,
     world_assets: Res<WorldAssets>,
@@ -387,6 +417,7 @@ pub fn world_generator_ui(
         .anchor(Align2::RIGHT_BOTTOM, egui::vec2(-15.0, -15.0))
         .show(egui_context.ctx_mut(), |ui| {
             let old_world = world_config.clone();
+            let mut changed = false;
 
             ui.separator();
 
@@ -452,23 +483,40 @@ pub fn world_generator_ui(
                     .button(RichText::new("Generate").color(Color32::LIGHT_GREEN))
                     .clicked()
                 {
-                    let terrain_mesh = world_assets.terrain_mesh.clone();
-                    let terrain_mesh = terrain_mesh.unwrap();
-                    let mesh = meshes.get_mut(&terrain_mesh);
-                    let mesh = mesh.unwrap();
-                    generate_terrain_perlin(mesh, &world_config);
+                    changed = true;
                 }
                 ui.end_row();
             });
 
-            let changed = *world_config != old_world;
+            changed |= world_config.auto_update && *world_config != old_world;
 
-            if changed && world_config.auto_update {
+            if changed {
                 let terrain_mesh = world_assets.terrain_mesh.clone();
                 let terrain_mesh = terrain_mesh.unwrap();
                 let mesh = meshes.get_mut(&terrain_mesh);
                 let mesh = mesh.unwrap();
-                generate_terrain_perlin(mesh, &world_config);
+
+                let terrain_material = world_assets.terrain_material.clone();
+                let terrain_material = terrain_material.unwrap();
+                let material = materials.get_mut(&terrain_material);
+                let material = material.unwrap();
+                let image_handle = material.base_color_texture.clone();
+                let image_handle = image_handle.unwrap();
+                let opt_image = images.get_mut(&image_handle);
+                let image = opt_image.unwrap();
+
+                if world_config.width != old_world.width || world_config.height != old_world.height
+                {
+                    let texture_data_size = world_config.width * world_config.height * 4;
+                    image.texture_descriptor.size = Extent3d {
+                        width: world_config.width as u32,
+                        height: world_config.height as u32,
+                        depth_or_array_layers: 1,
+                    };
+                    image.data.resize(texture_data_size, 0);
+                }
+
+                generate_terrain_perlin(mesh, &mut image.data, &world_config, &mut world_stats);
             }
         });
 }
