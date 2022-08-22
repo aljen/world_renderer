@@ -21,8 +21,9 @@ use bevy_inspector_egui::{
 
 use gdal::*;
 
-use noise::{NoiseFn, Perlin};
-use rand::Rng;
+use noise::{NoiseFn, Perlin, Seedable};
+use rand::{Rng, SeedableRng};
+use rand_chacha::ChaCha8Rng;
 
 // reference: https://www.youtube.com/playlist?list=PLFt_AvWsXl0eBW2EiBtl_sxmDtSgZBxB3
 
@@ -31,7 +32,7 @@ pub struct Terrain;
 
 #[derive(PartialEq, Clone, Copy)]
 pub struct GeneratorConfig {
-    seed: i64,
+    seed: u64,
 
     noise_scale: f64,
     octaves: i32,
@@ -174,7 +175,8 @@ fn generate_terrain_perlin(mesh: &mut Mesh, world_config: &WorldConfig) {
     indices.reserve(n_vertices);
 
     let perlin = Perlin::new();
-    let mut rand = rand::thread_rng();
+    perlin.set_seed(world_config.generator.seed as u32);
+    let mut rand = ChaCha8Rng::seed_from_u64(world_config.generator.seed);
 
     let mut octave_offsets: Vec<Vec2> = Vec::with_capacity(world_config.generator.octaves as usize);
 
@@ -380,9 +382,9 @@ pub fn world_generator_ui(
                 );
                 ui.end_row();
 
-                // ui.label("Seed:");
-                // ui.add(egui::DragValue::new(&mut world_config.height));
-                // ui.end_row();
+                ui.label("Seed:");
+                ui.add(egui::DragValue::new(&mut world_config.generator.seed));
+                ui.end_row();
 
                 ui.label("Octaves:");
                 ui.add(

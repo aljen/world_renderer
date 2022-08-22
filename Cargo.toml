@@ -14,6 +14,7 @@ bevy_egui = "0.15"
 bevy-inspector-egui = { version = "0.12" }
 #bevy_atmosphere = "0.3.1"
 rand = "0.8"
+rand_chacha = "0.3.1"
 noise = "0.7"
 geotiff = "0.0.2"
 gdal = {version = "0.11.0", features = ["bindgen"]}
