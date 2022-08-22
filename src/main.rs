@@ -195,6 +195,7 @@ fn generate_terrain_perlin(
     let n_vertices = world_config.width * world_config.height;
 
     let mut vertices: Vec<[f32; 3]> = Vec::with_capacity(n_vertices);
+    let mut uvs: Vec<[f32; 2]> = Vec::with_capacity(n_vertices);
     let mut indices: Vec<u32> = Vec::with_capacity(n_vertices);
 
     let half_width = world_config.width / 2;
@@ -236,6 +237,15 @@ fn generate_terrain_perlin(
                 (x - half_width as i32) as f32,
                 (y - half_height as i32) as f32,
                 (z * world_config.z_scale) as f32,
+            ]);
+        }
+    }
+
+    for y in 0..(world_config.height as i32) {
+        for x in 0..(world_config.width as i32) {
+            uvs.push([
+                x as f32 / world_config.width as f32,
+                y as f32 / world_config.height as f32,
             ]);
         }
     }
@@ -293,6 +303,7 @@ fn generate_terrain_perlin(
     }
 
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, vertices);
+    mesh.insert_attribute(Mesh::ATTRIBUTE_UV_0, uvs);
 
     mesh.duplicate_vertices();
     mesh.compute_flat_normals();
