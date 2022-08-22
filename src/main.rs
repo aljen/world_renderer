@@ -51,6 +51,11 @@ pub enum ConfigType {
     GeoTif,
 }
 
+pub struct WorldStats {
+    triangles: usize,
+    vertices: usize,
+}
+
 #[derive(PartialEq, Clone)]
 pub struct WorldConfig {
     width: usize,
@@ -72,7 +77,7 @@ pub struct WorldAssets {
     terrain_mesh: Option<Handle<Mesh>>,
 }
 
-fn generate_terrain_mesh(world_config: &WorldConfig) -> Mesh {
+fn generate_terrain_mesh(world_config: &WorldConfig, world_stats: &mut WorldStats) -> Mesh {
     let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
 
     generate_terrain_perlin(&mut mesh, world_config);
@@ -162,7 +167,11 @@ fn generate_terrain_geotif(mesh: &mut Mesh, world_config: &WorldConfig) {
     mesh.compute_flat_normals();
 }
 
-fn generate_terrain_perlin(mesh: &mut Mesh, world_config: &WorldConfig) {
+fn generate_terrain_perlin(
+    mesh: &mut Mesh,
+    world_config: &WorldConfig,
+    world_stats: &mut WorldStats,
+) {
     let mut vertices: Vec<[f32; 3]> = Vec::new();
     let mut indices: Vec<u32> = Vec::new();
 
@@ -253,6 +262,9 @@ fn generate_terrain_perlin(mesh: &mut Mesh, world_config: &WorldConfig) {
 
     mesh.duplicate_vertices();
     mesh.compute_flat_normals();
+
+    world_stats.vertices = mesh.count_vertices();
+    world_stats.triangles = world_stats.vertices / 3;
 }
 
 fn setup(
@@ -260,6 +272,7 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut world_assets: ResMut<WorldAssets>,
+    mut world_stats: ResMut<WorldStats>,
     world_config: Res<WorldConfig>,
 ) {
     // commands.spawn_bundle(Camera3dBundle {
@@ -271,7 +284,8 @@ fn setup(
         ..default()
     });
 
-    let terrain_mesh = meshes.add(generate_terrain_mesh(&world_config));
+    let terrain_mesh = meshes.add(generate_terrain_mesh(&world_config, &mut world_stats));
+
     world_assets.terrain_mesh = Some(terrain_mesh.clone());
 
     // commands.spawn_bundle(InfiniteGridBundle {
@@ -333,6 +347,10 @@ fn main() {
             offset: Vec2::ZERO,
         })
         .insert_resource(WorldAssets { terrain_mesh: None })
+        .insert_resource(WorldStats {
+            triangles: 0,
+            vertices: 0,
+        })
         .add_plugins(DefaultPlugins)
         .add_plugin(WireframePlugin)
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
@@ -348,6 +366,7 @@ pub fn world_generator_ui(
     mut egui_context: ResMut<EguiContext>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut world_config: ResMut<WorldConfig>,
+    mut world_stats: ResMut<WorldStats>,
     world_assets: Res<WorldAssets>,
 ) {
     egui::Window::new("Terrain")
@@ -443,6 +462,7 @@ pub fn world_generator_ui(
 pub fn debug_stats_ui(
     mut egui_context: ResMut<EguiContext>,
     mut world_config: ResMut<WorldConfig>,
+    world_stats: Res<WorldStats>,
     query_terrain: Query<(Entity, &Terrain, Option<&Wireframe>)>,
     diagnostics: Res<Diagnostics>,
 ) {
@@ -495,6 +515,14 @@ pub fn debug_stats_ui(
 
                 ui.label("Frame");
                 ui.label(format!("{}", frame_count));
+                ui.end_row();
+
+                ui.label("Vertices");
+                ui.label(format!("{}", world_stats.vertices));
+                ui.end_row();
+
+                ui.label("Triangles");
+                ui.label(format!("{}", world_stats.triangles));
                 ui.end_row();
 
                 // ui.label("Wireframe");
