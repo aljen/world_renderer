@@ -193,7 +193,7 @@ fn generate_terrain_geotif(mesh: &mut Mesh, world_config: &WorldConfig) {
 
 fn generate_terrain_perlin(
     mesh: &mut Mesh,
-    texture_data: &mut Vec<u8>,
+    texture_data: &mut [u8],
     world_config: &WorldConfig,
     world_stats: &mut WorldStats,
 ) {
