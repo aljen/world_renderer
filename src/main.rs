@@ -255,6 +255,23 @@ fn generate_terrain_perlin(
     }
 
     mesh.set_indices(Some(Indices::U32(indices)));
+
+    if mesh.contains_attribute(Mesh::ATTRIBUTE_POSITION) {
+        mesh.remove_attribute(Mesh::ATTRIBUTE_POSITION);
+    }
+    if mesh.contains_attribute(Mesh::ATTRIBUTE_NORMAL) {
+        mesh.remove_attribute(Mesh::ATTRIBUTE_NORMAL);
+    }
+    if mesh.contains_attribute(Mesh::ATTRIBUTE_UV_0) {
+        mesh.remove_attribute(Mesh::ATTRIBUTE_UV_0);
+    }
+    if mesh.contains_attribute(Mesh::ATTRIBUTE_TANGENT) {
+        mesh.remove_attribute(Mesh::ATTRIBUTE_TANGENT);
+    }
+    if mesh.contains_attribute(Mesh::ATTRIBUTE_COLOR) {
+        mesh.remove_attribute(Mesh::ATTRIBUTE_COLOR);
+    }
+
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, vertices);
 
     mesh.duplicate_vertices();
