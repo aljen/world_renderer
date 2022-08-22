@@ -57,6 +57,11 @@ pub struct WorldStats {
     vertices: usize,
 }
 
+pub struct TerrainLayer {
+    height: f32,
+    color: Color,
+}
+
 #[derive(PartialEq, Clone)]
 pub struct WorldConfig {
     width: usize,
@@ -206,6 +211,49 @@ fn generate_terrain_perlin(
     let mut rand = ChaCha8Rng::seed_from_u64(world_config.generator.seed);
 
     let mut octave_offsets: Vec<Vec2> = Vec::with_capacity(world_config.generator.octaves as usize);
+
+    let layers: Vec<TerrainLayer> = vec![
+        // water deep
+        TerrainLayer {
+            height: 0.3,
+            color: Color::rgb_u8(51, 100, 197),
+        },
+        // water shallow
+        TerrainLayer {
+            height: 0.4,
+            color: Color::rgb_u8(57, 106, 203),
+        },
+        // sand
+        TerrainLayer {
+            height: 0.45,
+            color: Color::rgb_u8(210, 208, 125),
+        },
+        // grass
+        TerrainLayer {
+            height: 0.55,
+            color: Color::rgb_u8(86, 152, 23),
+        },
+        // grass 2
+        TerrainLayer {
+            height: 0.6,
+            color: Color::rgb_u8(62, 107, 18),
+        },
+        // rock
+        TerrainLayer {
+            height: 0.7,
+            color: Color::rgb_u8(90, 69, 60),
+        },
+        // rock 2
+        TerrainLayer {
+            height: 0.9,
+            color: Color::rgb_u8(75, 60, 53),
+        },
+        // snow
+        TerrainLayer {
+            height: 1.0,
+            color: Color::ANTIQUE_WHITE,
+        },
+    ];
 
     for _ in 0..world_config.generator.octaves {
         let offset_x = rand.gen_range(-100_000.0..=100_000.0) + world_config.offset.x;
