@@ -172,16 +172,13 @@ fn generate_terrain_perlin(
     world_config: &WorldConfig,
     world_stats: &mut WorldStats,
 ) {
-    let mut vertices: Vec<[f32; 3]> = Vec::new();
-    let mut indices: Vec<u32> = Vec::new();
-
     let n_vertices = world_config.width * world_config.height;
+
+    let mut vertices: Vec<[f32; 3]> = Vec::with_capacity(n_vertices);
+    let mut indices: Vec<u32> = Vec::with_capacity(n_vertices);
 
     let half_width = world_config.width / 2;
     let half_height = world_config.height / 2;
-
-    vertices.reserve(n_vertices);
-    indices.reserve(n_vertices);
 
     let perlin = Perlin::new();
     perlin.set_seed(world_config.generator.seed as u32);
