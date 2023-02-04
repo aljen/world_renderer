@@ -9,15 +9,13 @@ use bevy::{
         mesh::Indices,
         render_resource::{Extent3d, PrimitiveTopology, TextureDimension, TextureFormat},
         settings::{WgpuFeatures, WgpuSettings},
-        texture::ImageSettings,
     },
-    window::PresentMode,
 };
 use bevy_egui::{egui, EguiContext};
 
 use bevy_inspector_egui::{
-    egui::{Align2, Color32, RichText},
-    WorldInspectorPlugin,
+    egui::{Color32, RichText},
+    quick::WorldInspectorPlugin,
 };
 
 use gdal::*;
@@ -52,6 +50,7 @@ pub enum ConfigType {
     GeoTif,
 }
 
+#[derive(Resource)]
 pub struct WorldStats {
     triangles: usize,
     vertices: usize,
@@ -62,7 +61,7 @@ pub struct TerrainLayer {
     color: Color,
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Resource)]
 pub struct WorldConfig {
     width: usize,
     height: usize,
@@ -79,6 +78,7 @@ pub struct WorldConfig {
     offset: Vec2,
 }
 
+#[derive(Resource)]
 pub struct WorldAssets {
     terrain_mesh: Option<Handle<Mesh>>,
     terrain_material: Option<Handle<StandardMaterial>>,
@@ -90,6 +90,9 @@ fn generate_terrain_mesh(
 ) -> (Mesh, Image) {
     let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
 
+    let texture_data_size = world_config.width * world_config.height * 4;
+    let texture_data: Vec<u8> = vec![0; texture_data_size];
+
     let mut texture = Image::new(
         Extent3d {
             width: world_config.width as u32,
@@ -97,12 +100,11 @@ fn generate_terrain_mesh(
             depth_or_array_layers: 1,
         },
         TextureDimension::D2,
-        Vec::new(),
+        texture_data,
         TextureFormat::Rgba8Unorm,
     );
 
-    let texture_data_size = world_config.width * world_config.height * 4;
-    texture.data.resize(texture_data_size, 0);
+    // texture.data.resize(texture_data_size, 0);
 
     generate_terrain_perlin(&mut mesh, &mut texture.data, world_config, world_stats);
 
@@ -206,7 +208,7 @@ fn generate_terrain_perlin(
     let half_width = world_config.width as f64 / 2.0;
     let half_height = world_config.height as f64 / 2.0;
 
-    let perlin = Perlin::new();
+    let perlin = Perlin::new(0);
     perlin.set_seed(world_config.generator.seed as u32);
     let mut rand = ChaCha8Rng::seed_from_u64(world_config.generator.seed);
 
@@ -308,7 +310,7 @@ fn generate_terrain_perlin(
     let z_diff = z_max - z_min;
     let z_diff = if z_diff > 0.0 { z_diff } else { 1.0 };
 
-    println!("z_min: {} z_max: {} z_diff: {}", z_min, z_max, z_diff);
+    // println!("z_min: {} z_max: {} z_diff: {}", z_min, z_max, z_diff);
 
     for y in 0..(world_config.height as i32) {
         for x in 0..(world_config.width as i32) {
@@ -414,7 +416,7 @@ fn setup(
     //     transform: Transform::from_xyz(0.0, 0.0, 250.0).looking_at(Vec3::ZERO, Vec3::Y),
     //     ..default()
     // });
-    commands.spawn_bundle(Camera3dBundle {
+    commands.spawn(Camera3dBundle {
         transform: Transform::from_xyz(0.0, -250.0, 100.0).looking_at(Vec3::ZERO, Vec3::Y),
         ..default()
     });
@@ -435,7 +437,7 @@ fn setup(
     world_assets.terrain_material = Some(terrain_material.clone());
 
     commands
-        .spawn_bundle(PbrBundle {
+        .spawn(PbrBundle {
             mesh: terrain_mesh,
             material: terrain_material,
             ..default()
@@ -453,27 +455,18 @@ fn main() {
             brightness: 1.0 / 5.0f32,
             // brightness: 1.0,
         })
-        .insert_resource(WindowDescriptor {
-            title: "WorldRenderer".to_string(),
-            width: 1920.0,
-            height: 1080.0,
-            // position: WindowPosition::At(Vec2::new(0.0, 50.0)),
-            position: WindowPosition::Centered(MonitorSelection::Primary),
-            present_mode: PresentMode::Immediate,
-            ..default()
-        })
         .insert_resource(WgpuSettings {
             features: WgpuFeatures::POLYGON_MODE_LINE,
             ..default()
         })
-        .insert_resource(ImageSettings::default_nearest())
+        // .insert_resource(ImageSettings::default_nearest())
         .insert_resource(WorldConfig {
-            width: 512,
-            height: 512,
-            z_scale: 50.0,
+            width: 128,
+            height: 128,
+            z_scale: 16.0,
             auto_update: true,
             wireframe: false,
-            world_type: ConfigType::GeoTif,
+            world_type: ConfigType::Generator,
             generator: GeneratorConfig {
                 seed: 0,
                 noise_scale: 100.0,
@@ -494,10 +487,22 @@ fn main() {
             triangles: 0,
             vertices: 0,
         })
-        .add_plugins(DefaultPlugins)
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            window: WindowDescriptor {
+                width: 1920.0,
+                height: 1080.0,
+                title: "WorldRenderer".to_string(),
+                position: WindowPosition::Centered,
+                present_mode: bevy::window::PresentMode::AutoNoVsync,
+                resizable: true,
+                ..default()
+            },
+            exit_on_all_closed: true,
+            ..default()
+        }))
         .add_plugin(WireframePlugin)
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
-        .add_plugin(WorldInspectorPlugin::new())
+        .add_plugin(WorldInspectorPlugin)
         .add_startup_system(setup)
         .add_system(world_generator_ui)
         .add_system(debug_stats_ui)
@@ -515,7 +520,10 @@ pub fn world_generator_ui(
     world_assets: Res<WorldAssets>,
 ) {
     egui::Window::new("Terrain")
-        .anchor(Align2::RIGHT_BOTTOM, egui::vec2(-15.0, -15.0))
+        .anchor(
+            bevy_egui::egui::Align2::RIGHT_BOTTOM,
+            egui::vec2(-15.0, -15.0),
+        )
         .show(egui_context.ctx_mut(), |ui| {
             let old_world = world_config.clone();
             let mut changed = false;
@@ -524,13 +532,11 @@ pub fn world_generator_ui(
 
             egui::Grid::new("GeneratorGrid").show(ui, |ui| {
                 ui.label("Width:");
-                ui.add(egui::Slider::new(&mut world_config.width, 128..=2048).clamp_to_range(true));
+                ui.add(egui::Slider::new(&mut world_config.width, 32..=2048).clamp_to_range(true));
                 ui.end_row();
 
                 ui.label("Height:");
-                ui.add(
-                    egui::Slider::new(&mut world_config.height, 128..=2048).clamp_to_range(true),
-                );
+                ui.add(egui::Slider::new(&mut world_config.height, 32..=2048).clamp_to_range(true));
                 ui.end_row();
 
                 ui.label("Height Scale:");
@@ -542,7 +548,7 @@ pub fn world_generator_ui(
 
                 ui.label("Noise Scale:");
                 ui.add(
-                    egui::Slider::new(&mut world_config.generator.noise_scale, 0.001..=128.0)
+                    egui::Slider::new(&mut world_config.generator.noise_scale, 0.001..=256.0)
                         .clamp_to_range(true),
                 );
                 ui.end_row();
@@ -661,7 +667,7 @@ pub fn debug_stats_ui(
     let wireframe = world_config.wireframe;
 
     egui::Window::new("Stats")
-        .anchor(Align2::RIGHT_TOP, egui::vec2(-15.0, 15.0))
+        .anchor(bevy_egui::egui::Align2::RIGHT_TOP, egui::vec2(-15.0, 15.0))
         .show(egui_context.ctx_mut(), |ui| {
             egui::Grid::new("StatsGrid").show(ui, |ui| {
                 ui.label("FPS");
